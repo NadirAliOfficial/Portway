@@ -45,7 +45,7 @@ struct BottleDetailView: View {
                     }
                 }
                 .disabled(isInstallingRuntimes)
-                .help("Installs vcrun2015 and vcrun2019 — many game/app installers need these.")
+                .help("Installs the VC++ 2015-2022 runtime — many game/app installers need this.")
             }
 
             HStack(spacing: 12) {

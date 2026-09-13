@@ -94,15 +94,16 @@ struct WineEngine {
         )
     }
 
-    /// Installs common Visual C++ runtimes via winetricks — many game/app installers
-    /// silently fail without these.
+    /// Installs the Visual C++ 2015-2022 runtime via winetricks — many game/app installers
+    /// silently fail without it. (vcrun2019 supersedes vcrun2015; winetricks treats installing
+    /// both as a conflict, so only the superseding one is requested.)
     func installCommonRuntimes(prefixPath: URL) async throws {
         guard let winetricks = Self.locateWinetricks() else {
             throw WineEngineError.launchFailed("winetricks not found. Install it with: brew install winetricks")
         }
         _ = try await run(
             executable: winetricks,
-            arguments: ["-q", "vcrun2015", "vcrun2019"],
+            arguments: ["-q", "--force", "vcrun2019"],
             prefixPath: prefixPath,
             extraEnvironment: ["WINE": binaryPath, "WINESERVER": wineserverPath]
         )
