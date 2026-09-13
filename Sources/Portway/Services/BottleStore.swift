@@ -75,4 +75,33 @@ final class BottleStore {
             lastError = error.localizedDescription
         }
     }
+
+    @MainActor
+    func setWindowsVersion(_ version: WindowsVersion, for bottle: Bottle) async {
+        guard let engine = WineEngine.locate() else {
+            lastError = WineEngineError.engineNotFound.localizedDescription
+            return
+        }
+        do {
+            try await engine.setWindowsVersion(version, prefixPath: bottle.prefixPath)
+            guard let index = bottles.firstIndex(where: { $0.id == bottle.id }) else { return }
+            bottles[index].windowsVersion = version
+            persist()
+        } catch {
+            lastError = error.localizedDescription
+        }
+    }
+
+    @MainActor
+    func installCommonRuntimes(for bottle: Bottle) async {
+        guard let engine = WineEngine.locate() else {
+            lastError = WineEngineError.engineNotFound.localizedDescription
+            return
+        }
+        do {
+            try await engine.installCommonRuntimes(prefixPath: bottle.prefixPath)
+        } catch {
+            lastError = error.localizedDescription
+        }
+    }
 }

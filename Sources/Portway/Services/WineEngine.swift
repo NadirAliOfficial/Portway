@@ -57,28 +57,73 @@ struct WineEngine {
         return nil
     }
 
+    private var wineserverPath: String {
+        URL(fileURLWithPath: binaryPath).deletingLastPathComponent()
+            .appendingPathComponent("wineserver").path
+    }
+
+    private static let winetricksPaths = [
+        "/opt/homebrew/bin/winetricks",
+        "/usr/local/bin/winetricks",
+    ]
+
+    private static func locateWinetricks() -> String? {
+        let fm = FileManager.default
+        return winetricksPaths.first { fm.isExecutableFile(atPath: $0) }
+    }
+
     /// Initializes a fresh WINEPREFIX at the given path (creates the C: drive layout).
     func initPrefix(at prefixPath: URL) async throws {
         try FileManager.default.createDirectory(at: prefixPath, withIntermediateDirectories: true)
-        _ = try await run(arguments: ["wineboot", "--init"], prefixPath: prefixPath)
+        _ = try await run(executable: binaryPath, arguments: ["wineboot", "--init"], prefixPath: prefixPath)
     }
 
     /// Runs an arbitrary .exe inside the given prefix. Returns once the process exits.
     @discardableResult
     func runExecutable(_ exePath: URL, prefixPath: URL) async throws -> Int32 {
-        try await run(arguments: [exePath.path], prefixPath: prefixPath)
+        try await run(executable: binaryPath, arguments: [exePath.path], prefixPath: prefixPath)
+    }
+
+    /// Sets the Windows version Wine reports to apps in this bottle (affects `GetVersionEx`
+    /// style compatibility checks that some installers/games perform).
+    func setWindowsVersion(_ version: WindowsVersion, prefixPath: URL) async throws {
+        _ = try await run(
+            executable: binaryPath,
+            arguments: ["reg", "add", "HKEY_CURRENT_USER\\Software\\Wine", "/v", "Version", "/d", version.registryValue, "/f"],
+            prefixPath: prefixPath
+        )
+    }
+
+    /// Installs common Visual C++ runtimes via winetricks — many game/app installers
+    /// silently fail without these.
+    func installCommonRuntimes(prefixPath: URL) async throws {
+        guard let winetricks = Self.locateWinetricks() else {
+            throw WineEngineError.launchFailed("winetricks not found. Install it with: brew install winetricks")
+        }
+        _ = try await run(
+            executable: winetricks,
+            arguments: ["-q", "vcrun2015", "vcrun2019"],
+            prefixPath: prefixPath,
+            extraEnvironment: ["WINE": binaryPath, "WINESERVER": wineserverPath]
+        )
     }
 
     @discardableResult
-    private func run(arguments: [String], prefixPath: URL) async throws -> Int32 {
+    private func run(
+        executable: String,
+        arguments: [String],
+        prefixPath: URL,
+        extraEnvironment: [String: String] = [:]
+    ) async throws -> Int32 {
         try await withCheckedThrowingContinuation { continuation in
             let process = Process()
-            process.executableURL = URL(fileURLWithPath: binaryPath)
+            process.executableURL = URL(fileURLWithPath: executable)
             process.arguments = arguments
 
             var env = ProcessInfo.processInfo.environment
             env["WINEPREFIX"] = prefixPath.path
             env["WINEDEBUG"] = "-all"
+            for (key, value) in extraEnvironment { env[key] = value }
             process.environment = env
 
             let stderrPipe = Pipe()

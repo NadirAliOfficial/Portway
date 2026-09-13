@@ -6,6 +6,7 @@ struct BottleDetailView: View {
     var bottle: Bottle
 
     @State private var isRunning = false
+    @State private var isInstallingRuntimes = false
     @State private var showingDeleteConfirm = false
 
     var body: some View {
@@ -18,6 +19,33 @@ struct BottleDetailView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .textSelection(.enabled)
+            }
+
+            HStack(spacing: 12) {
+                Text("Windows Version")
+                Picker("", selection: windowsVersionBinding) {
+                    ForEach(WindowsVersion.allCases) { version in
+                        Text(version.displayName).tag(version)
+                    }
+                }
+                .labelsHidden()
+                .frame(width: 160)
+
+                Button {
+                    isInstallingRuntimes = true
+                    Task {
+                        await store.installCommonRuntimes(for: bottle)
+                        isInstallingRuntimes = false
+                    }
+                } label: {
+                    if isInstallingRuntimes {
+                        ProgressView().controlSize(.small)
+                    } else {
+                        Label("Install VC++ Runtimes", systemImage: "shippingbox.and.arrow.backward")
+                    }
+                }
+                .disabled(isInstallingRuntimes)
+                .help("Installs vcrun2015 and vcrun2019 — many game/app installers need these.")
             }
 
             HStack(spacing: 12) {
@@ -60,6 +88,15 @@ struct BottleDetailView: View {
                 store.deleteBottle(bottle)
             }
         }
+    }
+
+    private var windowsVersionBinding: Binding<WindowsVersion> {
+        Binding(
+            get: { bottle.windowsVersion },
+            set: { newValue in
+                Task { await store.setWindowsVersion(newValue, for: bottle) }
+            }
+        )
     }
 
     private func pickAndRunExecutable() {

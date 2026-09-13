@@ -7,7 +7,8 @@ let package = Package(
     targets: [
         .executableTarget(
             name: "Portway",
-            path: "Sources/Portway"
+            path: "Sources/Portway",
+            exclude: ["Resources/Info.plist"]
         )
     ]
 )
